@@ -1,27 +1,6 @@
 //#include "simAVRHeader.h" // not including simulator
 #include "soviet_nixie_clock.h"
 
-// global variables
-enum state_TimeIncrementer {START_timer, COUNT, TIME_INC} state_TIMER;
-enum state_buttonSignals {START_button, INIT, IDLE, INC_WAIT, MAN_INC, SHIFT_LEFT, RESET_WAIT, SAVE_TIME, RESET, DECREMENT_WAIT, SHIFT_RIGHT, MAN_INC, MAST_WAIT} state_BUTTON;
-
-unsigned char heldFor = 0, timerCount = 0;
-unsigned char A0 = 0, A1 = 0;
-
-// defines
-#define HELD_FOR_THRESHOLD 10
-
-// additional macros
-#define unt ( !A0 && !A1 )
-#define bot ( A0 && A1 )
-#define inc ( A0 && !A1 )
-#define dec ( !A0 && A1 )
-#define HREQ ( heldFor >= HELD_FOR_THRESHOLD )
-
-
-// additional functions
-void samplePins ( void );
-
 /*************  MAIN FUNCTION  **************/
 int main ( void ) {
     // PORT initializations
