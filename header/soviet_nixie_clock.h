@@ -31,7 +31,7 @@ struct sncData {
     unsigned char timeData[3]; // {hour, minute, second} <-- the unitary order
     
     // functions dealing with time Data specificially
-    void ( *shiftUnitaryIndex ) ( unsigned char *unitaryIndex );
+    void ( *shiftUnitaryIndex ) ( unsigned char unitaryIndex );
     void ( *setTime ) ( unsigned char unitaryIndex, unsigned char value );
     // functions dealing with nixie driver display
     void ( *startDisplay ) ( void );
@@ -43,7 +43,7 @@ struct sncData {
 };
 
 
-void shiftUnitaryIndex ( unsigned char *unitaryIndex ); // pass by reference so to change the value of the original variable
+void shiftUnitaryIndex ( unsigned char unitaryIndex ); // pass by reference so to change the value of the original variable
 void setTime ( unsigned char unitaryIndex, unsigned char value ); // this function sets the time to a specifiable value
 
 /************ CODE MAINTAINING DISPLAY **************/

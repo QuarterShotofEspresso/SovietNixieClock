@@ -24,10 +24,4 @@ int main ( void ) {
 }
 /////////////////////////////////////////////
 
-void samplePins ( void ) {
-    
-    A0 = ( ~PINC & 0x04 ) >> 2;
-    A1 = ( ~PINC & 0x08 ) >> 3;
 
-    return;
-}
