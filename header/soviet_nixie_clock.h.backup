@@ -19,7 +19,7 @@ struct sncData {
 };
 
 
-//void selectUnitOfTime ( struct sncData *snc, enum UnitsOfTime unit );
+void selectUnitOfTime ( struct sncData *snc, enum UnitsOfTime unit );
 void setTime ( struct sncData *snc, enum timeAdjustments adjustment ); // this function sets the time to a specifiable value
 
 /************ CODE MAINTAINING DISPLAY **************/
