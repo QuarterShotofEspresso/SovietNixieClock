@@ -1,5 +1,5 @@
 // includes
-#include "soviet_nixie_clock"
+#include "soviet_nixie_clock.h"
 #include <util/twi.h>
 #include "i2c.h"
 
@@ -9,7 +9,7 @@
 #define SecondRegAddress_U8   0x00u // first register address
 
 // functions definitions
-void setTime ( struct sncData *snc, enum timeAdjustments adjustment ) {
+void setTime ( struct sncData *snc, enum TimeAdjustments adjustment ) {
 
     if ( adjustment == INCREMENT ) {
         timeData = ( ++timeData < TIME_UPPER_BOUND ) ? timeData : TIME_LOWER_BOUND; // standard cyclic incrementer
@@ -49,13 +49,15 @@ void updateDisplaySegments ( struct sncData *snc ) {
 }
 
 /* Selecting the units HOUR, MINUTE, SECOND, or ALL will switch off that segment of the display */
-void clearDisplaySegment ( struct sncData *snc, enum timeUnits UNIT ) {
+void clearDisplaySegment ( struct sncData *snc, enum UnitsOfTime segment ) {
 
-    if (( UNIT == HOUR ) || ( UNIT == ALL )) {
+    if (( segment == HOUR ) || ( segment == ALL )) {
         ( *snc ).hourDisplay = 0x0A; // 0 to 9 correspond to a number. #10 to 0xFF will not light anything
-    } else if (( UNIT == MINUTE ) || ( UNIT == ALL )) {
+    }
+    else if (( segment == MINUTE ) || ( segment == ALL )) {
 	( *snc ).minuteDisplay = 0x0A;
-    } else if (( UNIT == SECOND ) || ( UNIT == ALL )) {
+    }
+    else if (( segment == SECOND ) || ( segment == ALL )) {
 	( *snc ).secondDisplay = 0x0A;
     }
 
@@ -79,14 +81,14 @@ void initRTC ( void ) {
 void saveTime ( struct sncData *snc ) {
 
     // begin i2C communication and store variables in BCD hex fomat
-    TWIStart(); // send the start bit
+    TWIStart (); // send the start bit
     TWIWrite ( C_Ds1307WriteMode_U ); // send the mode
     TWIWrite ( address ); // send the address to write to
 
     TWIWrite ( secondDisplay ); // send the seconds data
     TWIWrite ( minuteDisplay ); // send the minutes data
     TWIWrite ( hourDisplay ); // end the hour data
-    TWIStop(); // send the stop data
+    TWIStop (); // send the stop bit
     
     return;
 }
@@ -98,19 +100,19 @@ void recallTime ( struct sncData *snc ) {
     unsigned char seconds, minutes, hours;
 
     // begin communication
-    TWIStart(); // send start bit
+    TWIStart (); // send start bit
     // set the module in read mode
     TWIWrite ( C_Ds1307WriteMode_U ); // set the module in write mode
     TWIWrite ( SecondRegAddress_U8 ); // send the addres to read from
-    TWIStop(); // send stop bit
+    TWIStop  (); // send stop bit
 
 
-    TWIStart(); // send start bit
+    TWIStart (); // send start bit
     TWIWrite ( C_Ds1307ReadMode_U8 ); // connect to DS1307(Read mode) by sending its ID
     seconds = TWIReadACK (); // read second and return Positive ACK
     minutes = TWIReadACK (); // read minute and return Positive ACK
     hours   = TWIReadNACK (); // read hour and return Not ACK
-    TWIStop(); // send stop bit
+    TWIStop  (); // send stop bit
     /* DISTINCTION BETWEEN NOT ACKNOWLEDGE ( MASTER READS FROM SLAVE ) AND NO ACKNOWLEDGE ( MASTER WRITES TO SLAVE ) http://www.esacademy.com/en/library/technical-articles-and-documents/miscellaneous/i2c-bus/i2c-bus-events/giving-acknowledge-to-a-slave-device.html*/
 
     // (( time >> 4 ) * 10 ) + ( time & 0x0F ))
