@@ -6,22 +6,33 @@
 // custom defines
 #define C_Ds1307ReadMode_U8   0xD1u // DS1307 ID
 #define C_Ds1307WriteMode_U8  0xD0u // DS1307 ID
+#define ControlRegAddress     0x07u // control register address
 #define SecondRegAddress_U8   0x00u // first register address
+#define SECONDS_IN_A_HALF_DAY 43200
+#define TIME_UPPER_BOUND SECONDS_IN_A_HALF_DAY
+#define TIME_LOWER_BOUND 0
 
 // functions definitions
 void setTime ( struct sncData *snc, enum TimeAdjustments adjustment ) {
 
     if ( adjustment == INCREMENT ) {
-        timeData = ( ++timeData < TIME_UPPER_BOUND ) ? timeData : TIME_LOWER_BOUND; // standard cyclic incrementer
+        ( *snc ).timeData = ( ++( *snc ).timeData < TIME_UPPER_BOUND ) ? ( *snc ).timeData : TIME_LOWER_BOUND; // standard cyclic incrementer
     }
     else if ( adjustment == DECREMENT ) {
-        timeData = ( --timeData > TIME_LOWER_BOUND ) ? timeData : TIME_UPPER_BOUND; // standard cyclic decrementer
+        ( *snc ).timeData = ( --( *snc ).timeData > TIME_LOWER_BOUND ) ? ( *snc ).timeData : TIME_UPPER_BOUND; // standard cyclic decrementer
     }
     
     // clear the seconds
-    timeData = ( timeData / 60 ) * 60;
+    ( *snc ).timeData = (( *snc ).timeData / 60 ) * 60;
 
     return;
+}
+
+// increments time by one second
+void autoIncrement ( struct sncData *snc ) {
+	( *snc ).timeData = ++( *snc ).timeData % SECONDS_IN_A_HALF_DAY;
+
+	return;
 }
 
 /* update the display segments on the snc */
@@ -68,7 +79,7 @@ void clearDisplaySegment ( struct sncData *snc, enum UnitsOfTime segment ) {
 void initRTC ( void ) {
 
     TWIStart(); // send start bit
-    TWIWrite ( C_Ds1307WriteMode_U ); // send the address of the RTC module and set it in write mode
+    TWIWrite ( C_Ds1307WriteMode_U8 ); // send the address of the RTC module and set it in write mode
     TWIWrite ( ControlRegAddress ); // tell the rtc module the register to write data to
     TWIWrite ( 0x00 ); // send the data
     TWIStop(); // send stop bit
@@ -78,16 +89,16 @@ void initRTC ( void ) {
 
 /* save the time of snc to the RTC module */
 // https://embedds.com/programming-avr-i2c-interface/
-void saveTime ( struct sncData *snc ) {
+void saveTimeToRTC ( struct sncData *snc ) {
 
     // begin i2C communication and store variables in BCD hex fomat
     TWIStart (); // send the start bit
-    TWIWrite ( C_Ds1307WriteMode_U ); // send the mode
-    TWIWrite ( address ); // send the address to write to
+    TWIWrite ( C_Ds1307WriteMode_U8 ); // send the mode
+    TWIWrite ( SecondRegAddress_U8 ); // send the address to write to
 
-    TWIWrite ( secondDisplay ); // send the seconds data
-    TWIWrite ( minuteDisplay ); // send the minutes data
-    TWIWrite ( hourDisplay ); // end the hour data
+    TWIWrite (( *snc ).secondDisplay ); // send the seconds data
+    TWIWrite (( *snc ).minuteDisplay ); // send the minutes data
+    TWIWrite (( *snc ).hourDisplay ); // end the hour data
     TWIStop (); // send the stop bit
     
     return;
@@ -95,14 +106,14 @@ void saveTime ( struct sncData *snc ) {
 
 
 /* retrieve the time from the RTC module */
-void recallTime ( struct sncData *snc ) {
+void recallTimeFromRTC ( struct sncData *snc ) {
 
     unsigned char seconds, minutes, hours;
 
     // begin communication
     TWIStart (); // send start bit
     // set the module in read mode
-    TWIWrite ( C_Ds1307WriteMode_U ); // set the module in write mode
+    TWIWrite ( C_Ds1307WriteMode_U8 ); // set the module in write mode
     TWIWrite ( SecondRegAddress_U8 ); // send the addres to read from
     TWIStop  (); // send stop bit
 

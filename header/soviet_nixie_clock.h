@@ -17,7 +17,8 @@ struct sncData {
 
 /************ CODE MAINTAINING TIME *****************/
 
-void setTime ( struct sncData *snc, enum TimeAdjustments adjustment ); // this function sets the time to a specifiable value
+void setTime ( struct sncData *snc, enum TimeAdjustments adjustment ); // adjust time based on selected units
+void autoIncrement ( struct sncData *snc );
 
 /************ CODE MAINTAINING DISPLAY **************/
 
