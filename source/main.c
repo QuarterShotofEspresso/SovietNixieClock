@@ -18,18 +18,18 @@
 
 // defines
 #define true 1
-#define TOTAL_TASKS 3
+#define TOTAL_TASKS 4
 #define PERIOD_timer 1000
-#define PERIOD_adjustData 16
-#define PERIOD_display 16
-#define PERIOD_GCD 8
+#define PERIOD_adjustData 1
+#define PERIOD_display 1
+#define PERIOD_sample 50
+#define PERIOD_GCD 1
 
 // additional macros
-#define unt ( !A0 && !A1 )
-#define bot ( A0 && A1 )
-#define inc ( A0 && !A1 )
-#define dec ( !A0 && A1 )
-#define HREQ ( heldFor >= HELD_FOR_THRESHOLD )
+#define unt ( !I0 && !I1 )
+#define bot ( I0 && I1 )
+#define inc ( I0 && !I1 )
+#define dec ( !I0 && I1 )
 
 struct _task {
 
@@ -42,6 +42,8 @@ struct _task {
 
 
 // possible states for each function
+enum _States_sample { START_sample, INIT, MAST_WAIT, IDLE, MINC_WAIT, MINC, MINC_RAPID, MDEC_WAIT, MDEC, MDEC_RAPID, SAVE_TIME_WAIT, SAVE_TIME };
+
 
 // global variables
 static struct sncData gSnc;
@@ -51,20 +53,18 @@ static unsigned char gAutoIncrementFlag = 0;
 static unsigned char gDecFlag = 0;
 static unsigned char gIncFlag = 0;
 static unsigned char gSaveFlag = 0;
+static unsigned char gReadFlag = 0;
 
 // additional functions
 void tick_timer ( void );
 void tick_adjustData ( void );
 void tick_display ( void );
+void tick_sample ( void );
 void executeTasks ( void );
 void initializeTasks ( void );
 void initializePorts ( void );
 void initializeTimer ( void );
 void initialize_gSnc ( void );
-
-// static definitions that need to be made
-//static unsigned char gA1 = 0;
-//static unsigned char gA0 = 0;
 
 
 /******************************* MAIN FUNCTION *****************************/
@@ -99,10 +99,8 @@ void executeTasks ( void ) {
 		gTasks[i].elapsedTime += PERIOD_GCD; // log the total time elpased into that task variable
 
 		if ( gTasks[i].elapsedTime == gTasks[i].period ) {
-
 			gTasks[i].elapsedTime = 0; // if the task period has complete, reset the total time elpased
 			gTasks[i].tick(); // and execute the task's duties
-
 		}
 
 	}
@@ -155,6 +153,195 @@ void initializeTasks ( void ) {
 	gTasks[2].period = PERIOD_display;
 	gTasks[2].tick = tick_display;
 
+	gTasks[3].elapsedTime = 0;
+	gTasks[3].period = PERIOD_sample;
+	gTasks[3].tick = tick_sample;
+
+	return;
+}
+
+void tick_sample ( void ) {
+	
+	static unsigned char timerCount = 0;
+	static enum _States_sample state_sample = START_sample;
+
+	// sampler characters
+	unsigned char I0;
+	unsigned char I1;
+
+	I0 = ~PINC & 0x08;
+	I1 = ~PINC & 0x04;
+
+	// transitions
+	switch ( state_sample ) {
+		
+		case START_sample:
+			state_sample = INIT;
+			break;
+
+		case INIT:
+			state_sample = MAST_WAIT;
+			break;
+
+		case MAST_WAIT:
+			state_sample = ( unt ) ? IDLE : MAST_WAIT;
+			break;
+
+		case IDLE:
+			if ( unt ) {
+				state_sample = IDLE;
+			}
+			else if ( inc ) {
+				state_sample = MINC_WAIT;
+			}
+			else if ( dec ) {
+				state_sample = MDEC_WAIT;
+			}
+			else if ( bot ) {
+				state_sample = SAVE_TIME_WAIT;
+			}
+			else {
+				state_sample = IDLE;
+			}
+
+			break;
+
+		case MINC_WAIT:
+			if (( timerCount < 10 ) && inc ) {
+				state_sample = MINC_WAIT;
+			}
+			else if (( timerCount < 10 ) && !inc ) {
+				state_sample = MINC;
+			}
+			else if (( timerCount >= 10 ) && inc ) {
+				state_sample = MINC_RAPID;
+			}
+		        else if (( timerCount >= 10 ) && !inc ) {
+				state_sample = MAST_WAIT;
+			}
+			else {
+				state_sample = MINC_WAIT;
+			}
+
+			break;
+
+
+		case MINC:
+			state_sample = MAST_WAIT;
+			break;
+
+
+		case MINC_RAPID:
+			if ( inc ) {
+				state_sample = MINC_RAPID;
+			}
+			else {
+				state_sample = MAST_WAIT;
+			}
+
+			break;
+
+
+		case MDEC_WAIT:
+			if (( timerCount < 10 ) && dec ) {
+				state_sample = MDEC_WAIT;
+			}
+			else if (( timerCount < 10 ) && !dec ) {
+				state_sample = MDEC;
+			}
+			else if (( timerCount >= 10 ) && dec ) {
+				state_sample = MDEC_RAPID;
+			}
+			else if (( timerCount >= 10 ) && !dec ) {
+				state_sample = MAST_WAIT;
+			}
+			else {
+				state_sample = MDEC_WAIT;
+			}
+
+			break;
+
+
+		case MDEC:
+			state_sample = MAST_WAIT;
+			break;
+
+
+		case MDEC_RAPID:
+			if ( dec ) {
+				state_sample = MDEC_RAPID;
+			}
+			else {
+				state_sample = MAST_WAIT;
+			}
+
+			break;
+
+		case SAVE_TIME_WAIT:
+			if (( timerCount < 10 ) && bot ) {
+				state_sample = SAVE_TIME_WAIT;
+			}
+			else if (( timerCount >= 10 ) && bot ) {
+				state_sample = SAVE_TIME;
+			}
+			else if ( !bot ) {
+				state_sample = MAST_WAIT;
+			}
+			else {
+				state_sample = SAVE_TIME_WAIT;
+			}
+
+			break;
+
+		case SAVE_TIME:
+			state_sample = MAST_WAIT;
+			break;
+	}
+
+	// actions
+	switch ( state_sample ) {
+
+		case START_sample: 
+			break;
+		
+		case INIT:
+			gReadFlag = 1;
+			break;
+		
+		case MAST_WAIT:
+			timerCount = 0;
+			break;
+
+		case IDLE :
+			break;
+
+		case MINC_WAIT:
+			timerCount++;
+			break;
+
+		case MINC:
+		case MINC_RAPID:
+			gIncFlag = 1;
+			break;
+
+		case MDEC_WAIT:
+			timerCount++;
+			break;
+
+		case MDEC:
+		case MDEC_RAPID:
+			gDecFlag = 1;
+			break;
+
+		case SAVE_TIME_WAIT:
+			timerCount++;
+			break;
+
+		case SAVE_TIME:
+			gSaveFlag = 1;
+			break;
+	}
+
 	return;
 }
 
@@ -167,23 +354,40 @@ void tick_timer ( void ) {
 
 void tick_adjustData ( void ) {
 
+	static unsigned char autoIncrementDelay = 0;
+	static const unsigned char maxAutoIncDelay = 1;
+
 	if ( gIncFlag ) {
 		setTime( &gSnc, INCREMENT );
-		gIncFlag = 0;
+		gIncFlag = 0;	
+		autoIncrementDelay = (( autoIncrementDelay + 1 ) > maxAutoIncDelay ) ? maxAutoIncDelay : autoIncrementDelay + 1;
 	}
 	else if ( gDecFlag ) {
 		setTime( &gSnc, DECREMENT );
-		gDecFlag = 0;
+		gDecFlag = 0;	
+		autoIncrementDelay = (( autoIncrementDelay + 1 ) > maxAutoIncDelay ) ? maxAutoIncDelay : autoIncrementDelay + 1;
 	}
 	else if ( gSaveFlag ) {
-		saveTimeToRTC( &gSnc );
+		//saveTimeToRTC( &gSnc ); // TODO:: Implement RTC save time functionality
 		gSaveFlag = 0;
+		autoIncrementDelay = (( autoIncrementDelay + 1 ) > maxAutoIncDelay ) ? maxAutoIncDelay : autoIncrementDelay + 1;
 	}
 	// ensure this case is the **FINAL** case
 	else if ( gAutoIncrementFlag ) {
-		autoIncrement( &gSnc );
+		if ( autoIncrementDelay == 0 ) {
+			autoIncrement( &gSnc );
+		}
+		else {
+			autoIncrementDelay--;
+		}
+
 		gAutoIncrementFlag = 0;
 	}
+	else if ( gReadFlag ) {
+		//readTimeFromRTC( &gSnc ); // TODO:: insert function to read from RTC module
+		gReadFlag = 0;
+	}
+
 
 	return;
 }
@@ -199,10 +403,6 @@ void tick_display ( void ) {
 
 	return;
 }
-
-
-void tick_buttons ( void ) { }
-
 
 void TimerISR ( void ) {
 	gTimerFlag = 1;

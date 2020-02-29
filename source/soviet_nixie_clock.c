@@ -16,10 +16,10 @@
 void setTime ( struct sncData *snc, enum TimeAdjustments adjustment ) {
 
     if ( adjustment == INCREMENT ) {
-        ( *snc ).timeData = ( ++( *snc ).timeData < TIME_UPPER_BOUND ) ? ( *snc ).timeData : TIME_LOWER_BOUND; // standard cyclic incrementer
+        ( *snc ).timeData = (( ( *snc ).timeData + 60 ) < TIME_UPPER_BOUND ) ? (( *snc ).timeData + 60 ) : TIME_LOWER_BOUND; // standard cyclic incrementer
     }
     else if ( adjustment == DECREMENT ) {
-        ( *snc ).timeData = ( --( *snc ).timeData > TIME_LOWER_BOUND ) ? ( *snc ).timeData : TIME_UPPER_BOUND; // standard cyclic decrementer
+        ( *snc ).timeData = (( ( *snc ).timeData - 60 ) > TIME_LOWER_BOUND ) ? (( *snc ).timeData - 60 ) : TIME_UPPER_BOUND; // standard cyclic decrementer
     }
     
     // clear the seconds
