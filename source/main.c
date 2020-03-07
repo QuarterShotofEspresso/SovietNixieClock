@@ -42,7 +42,7 @@ struct _task {
 
 
 // possible states for each function
-enum _States_sample { START_sample, INIT, MAST_WAIT, IDLE, MINC_WAIT, MINC, MINC_RAPID, MDEC_WAIT, MDEC, MDEC_RAPID, SAVE_TIME_WAIT, SAVE_TIME };
+enum _States_sample { START_sample, INIT, MAST_WAIT, IDLE, MINC_WAIT, MINC, MINC_RAPID, MDEC_WAIT, MDEC, MDEC_RAPID, SAVE_TIME_WAIT, SAVE_TIME, STOP_DISPLAY };
 
 
 // global variables
@@ -53,7 +53,9 @@ static unsigned char gAutoIncrementFlag = 0;
 static unsigned char gDecFlag = 0;
 static unsigned char gIncFlag = 0;
 static unsigned char gSaveFlag = 0;
-static unsigned char gReadFlag = 0;
+static unsigned char gReadFlag = 1;
+static unsigned char gDisplayFlag = 1;
+static short gAdjustmentFactor = 1;
 
 // additional functions
 void tick_timer ( void );
@@ -65,7 +67,8 @@ void initializeTasks ( void );
 void initializePorts ( void );
 void initializeTimer ( void );
 void initialize_gSnc ( void );
-
+// global test function
+void testFunction ( unsigned char TestID );
 
 /******************************* MAIN FUNCTION *****************************/
 
@@ -75,13 +78,16 @@ int main ( void ) {
 	initializePorts();
 	initializeTasks();
 	initialize_gSnc();
+	initialize__RTC();
 
 	while ( true ) {
 	
 		while ( !gTimerFlag ); // will execute only at the frequency of PERIOD_GCD
 		gTimerFlag = 0;
 
-		// PORTA = PORTB = PORTD = ( ~PINC ); //test case
+		
+		//testFunction( 3 );
+
 		executeTasks();
 	}
 
@@ -91,6 +97,30 @@ int main ( void ) {
 
 /////////////////////////////////////////////////////////////////////////////
 
+void testFunction ( unsigned char TestID ) {
+
+	switch ( TestID ) {
+		case 1:
+			PORTA = PORTB = PORTD = ( ~PINC );
+			break;
+
+		case 2:
+			//gSnc.timeData = 39599; // max possible time is 11:59:59
+			gSnc.timeData = 43199; // max possible time is 12:59:59
+			setTime( &gSnc, -600 );
+			tick_display();
+			break;
+
+		case 3:
+			if ( PINC ) {
+				gSnc.timeData = 39000;
+				setTime( &gSnc, 600 );
+				break;
+			}
+	}
+
+	return;
+}
 
 void executeTasks ( void ) {
 
@@ -111,7 +141,7 @@ void executeTasks ( void ) {
 
 void initialize_gSnc ( void ) {
 
-	gSnc.timeData = 13500;
+	gSnc.timeData = 0;
 	gSnc.hourDisplay = 0;
 	gSnc.minuteDisplay = 0;
 	gSnc.secondDisplay = 0;
@@ -207,7 +237,10 @@ void tick_sample ( void ) {
 			break;
 
 		case MINC_WAIT:
-			if (( timerCount < 10 ) && inc ) {
+			if ( bot ) {
+				state_sample = SAVE_TIME_WAIT;
+			}
+			else if (( timerCount < 10 ) && inc ) {
 				state_sample = MINC_WAIT;
 			}
 			else if (( timerCount < 10 ) && !inc ) {
@@ -243,7 +276,10 @@ void tick_sample ( void ) {
 
 
 		case MDEC_WAIT:
-			if (( timerCount < 10 ) && dec ) {
+			if ( bot ) {
+				state_sample = SAVE_TIME_WAIT;
+			}
+			else if (( timerCount < 10 ) && dec ) {
 				state_sample = MDEC_WAIT;
 			}
 			else if (( timerCount < 10 ) && !dec ) {
@@ -265,7 +301,6 @@ void tick_sample ( void ) {
 		case MDEC:
 			state_sample = MAST_WAIT;
 			break;
-
 
 		case MDEC_RAPID:
 			if ( dec ) {
@@ -294,7 +329,17 @@ void tick_sample ( void ) {
 			break;
 
 		case SAVE_TIME:
-			state_sample = MAST_WAIT;
+			state_sample = STOP_DISPLAY;
+			break;
+
+		case STOP_DISPLAY:
+			if ( timerCount < 10 ) {
+				state_sample = STOP_DISPLAY;
+			}
+			else {
+				state_sample = MAST_WAIT;
+			}
+
 			break;
 	}
 
@@ -320,8 +365,13 @@ void tick_sample ( void ) {
 			break;
 
 		case MINC:
+			gIncFlag = 1;
+			gAdjustmentFactor = 60;
+			break;
+
 		case MINC_RAPID:
 			gIncFlag = 1;
+			gAdjustmentFactor = 600;
 			break;
 
 		case MDEC_WAIT:
@@ -329,8 +379,13 @@ void tick_sample ( void ) {
 			break;
 
 		case MDEC:
+			gDecFlag = 1;
+			gAdjustmentFactor = -60;
+			break;
+
 		case MDEC_RAPID:
 			gDecFlag = 1;
+			gAdjustmentFactor = -600;
 			break;
 
 		case SAVE_TIME_WAIT:
@@ -339,6 +394,11 @@ void tick_sample ( void ) {
 
 		case SAVE_TIME:
 			gSaveFlag = 1;
+			timerCount = 0;
+			break;
+
+		case STOP_DISPLAY:
+			timerCount++;
 			break;
 	}
 
@@ -358,18 +418,21 @@ void tick_adjustData ( void ) {
 	static const unsigned char maxAutoIncDelay = 1;
 
 	if ( gIncFlag ) {
-		setTime( &gSnc, INCREMENT );
-		gIncFlag = 0;	
+		setTime( &gSnc, gAdjustmentFactor );
+		gIncFlag = 0;
 		autoIncrementDelay = (( autoIncrementDelay + 1 ) > maxAutoIncDelay ) ? maxAutoIncDelay : autoIncrementDelay + 1;
+		gDisplayFlag = 1;
 	}
 	else if ( gDecFlag ) {
-		setTime( &gSnc, DECREMENT );
-		gDecFlag = 0;	
+		setTime( &gSnc, gAdjustmentFactor );
+		gDecFlag = 0;
 		autoIncrementDelay = (( autoIncrementDelay + 1 ) > maxAutoIncDelay ) ? maxAutoIncDelay : autoIncrementDelay + 1;
+		gDisplayFlag = 1;
 	}
 	else if ( gSaveFlag ) {
-		//saveTimeToRTC( &gSnc ); // TODO:: Implement RTC save time functionality
+		saveTimeToRTC( &gSnc ); // TODO:: Implement RTC save time functionality
 		gSaveFlag = 0;
+		gDisplayFlag = 0;
 		autoIncrementDelay = (( autoIncrementDelay + 1 ) > maxAutoIncDelay ) ? maxAutoIncDelay : autoIncrementDelay + 1;
 	}
 	// ensure this case is the **FINAL** case
@@ -382,10 +445,12 @@ void tick_adjustData ( void ) {
 		}
 
 		gAutoIncrementFlag = 0;
+		gDisplayFlag = 1;
 	}
 	else if ( gReadFlag ) {
-		//readTimeFromRTC( &gSnc ); // TODO:: insert function to read from RTC module
+		recallTimeFromRTC( &gSnc ); // TODO:: insert function to read from RTC module
 		gReadFlag = 0;
+		gDisplayFlag = 1;
 	}
 
 
@@ -395,7 +460,12 @@ void tick_adjustData ( void ) {
 
 void tick_display ( void ) {
 
-	updateDisplaySegments( &gSnc );
+	if ( gDisplayFlag ) {
+		updateDisplaySegments( &gSnc );
+	}
+	else {
+		clearDisplaySegments( &gSnc );
+	}
 	
 	PORTA = gSnc.secondDisplay;
 	PORTB = gSnc.minuteDisplay;
